@@ -116,7 +116,7 @@ class SPA_AuctionEnvironment(AbstractAuctionEnvironment):
 class EpsilonGreedy:
     """Represents an agent using the ε-greedy reinforcement learning strategy."""
     
-    def __init__(self, name, value, a=0.025, b=0.0002, alpha = 0.05, gamma = 0.99): 
+    def __init__(self, name, value, a=0.025, b=0.0002, alpha = 0.05, gamma = 0.99, init_param=1): 
         self.name = name
         self.value = value  # The private value for the item
         self.a = a # the constant in front of the term for probability of exploring in every round
@@ -125,6 +125,7 @@ class EpsilonGreedy:
         self.alpha = alpha  # learning rate
         self.gamma = gamma  # Discount factor for future rewards 
         self.number_of_bids = 19
+        self.init_param = init_param
 
         ## At the moment the available bid depends on the value of the bidder, might want to change this ## 
         self.bid_options = np.array([i*0.05 for i in range(1, self.number_of_bids + 1)]) #Creates the grid from 0 to value, num_actions giving density of discrete actions available
@@ -133,7 +134,7 @@ class EpsilonGreedy:
 
         #Optimistic initialisation
 
-        optimism = float(1.5)
+        optimism = float(self.init_param)
         self.q_values = np.full(self.number_of_bids, optimism)
         
         ###############################
