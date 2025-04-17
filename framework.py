@@ -56,7 +56,7 @@ class AbstractAuctionEnvironment(ABC):
                 last_best_action[bidder] = current_best_action
 
             # Record round results (list of tuples giving info for EACH round)
-            self.history.append((bids, winner, winning_bid, rewards[winner]))
+            self.history.append((bids, winner.name, winning_bid, rewards[winner]))
 
             # If all bidders have kept the same best action for `convergence_limit` rounds, stop
             if all(count >= convergence_limit for count in convergence_count.values()):
@@ -80,7 +80,7 @@ class FPA_AuctionEnvironment(AbstractAuctionEnvironment):
         potential_winners = [bidder for bidder, bid_amount in bids.items() if bid_amount == max_bid]
 
         winner = random.choice(potential_winners)  # break tie randomly
-        winning_bid = bids[winner]
+        winning_bid = bids[winner] #just max_bid
 
         # Initialize reward dictionary
         rewards = {bidder: 0 for bidder in bids}
@@ -116,7 +116,7 @@ class SPA_AuctionEnvironment(AbstractAuctionEnvironment):
 class EpsilonGreedy:
     """Represents an agent using the ε-greedy reinforcement learning strategy."""
     
-    def __init__(self, name, value, a=0.025, b=0.0002, alpha = 0.05, gamma = 0.99, init_param=1): 
+    def __init__(self, name, value, a=0.025, b=0.0002, alpha = 0.05, gamma = 0.99, init_param=101): 
         self.name = name
         self.value = value  # The private value for the item
         self.a = a # the constant in front of the term for probability of exploring in every round
@@ -130,17 +130,13 @@ class EpsilonGreedy:
         ## At the moment the available bid depends on the value of the bidder, might want to change this ## 
         self.bid_options = np.array([i*0.05 for i in range(1, self.number_of_bids + 1)]) #Creates the grid from 0 to value, num_actions giving density of discrete actions available
         
-        ###############################
+        
 
-        #Optimistic initialisation
+        #Optimistic initialisation - must be bigger than 100 to deal with worst case scenario and truly be optimistic. 
 
         optimism = float(self.init_param)
         self.q_values = np.full(self.number_of_bids, optimism)
-        
-        ###############################
-        
-        # self.q_values = np.zeros(self.number_of_bids)  # Q-values initialised at zero for each available action
-        # self.action_counts = np.zeros(num_actions)  # Times each bid was selected
+           
 
 
     def place_bid(self):
@@ -174,8 +170,10 @@ class EpsilonGreedy:
         td_error = td_target - self.q_values[action]  # Difference from Q-value
 
         # update Q-value with learning rate alpha
+        #print(f"Before update: ", self.q_values[action])
         self.q_values[action] = self.q_values[action] + self.alpha * td_error
-        
+        #print(f"After update: ", self.q_values[action])
+
 
 class AuctionSimulation:
     """Controls the auction simulation and stores results."""
