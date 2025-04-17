@@ -2,61 +2,121 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 import random
+from abc import ABC, abstractmethod
 
-class FPA_AuctionEnvironment:
-    """Simulates a repeated first-price auction."""
+class AbstractAuctionEnvironment(ABC):
+    """Abstract base class for a repeated auction environment."""
 
     def __init__(self, bidders):
-        self.bidders = bidders  # List of bidder objects
+        """
+        :param bidders: A list of bidder objects (e.g., EpsilonGreedy instances).
+        """
+        self.bidders = bidders
         self.history = []
 
-    def run_auction(self, max_rounds=10000, convergence_limit=1000):
-        """Run multiple rounds of the auction."""
-        convergence_count = {bidder: 0 for bidder in self.bidders}  # Tracks stability count
-        last_best_action = {bidder: np.argmax(bidder.q_values) for bidder in self.bidders}  # Initial argmax tracking
-        
-        for _ in range(max_rounds):  #'_' as loop index is not needed 
-            ### Query - What should happen in case of draw ### I have that the winner is randomly drawn
+    @abstractmethod
+    def _compute_rewards(self, bids):
+        """
+        Given a dictionary of {bidder: bid}, compute:
+         - The winning bidder (or bidders in a tie)
+         - The winning bid
+         - A dictionary of rewards for each bidder
+        Returns: (winner, winning_bid, rewards_dict)
+        """
+        pass
 
+    def run_auction(self, max_rounds=10000, convergence_limit=1000):
+        """
+        Run multiple rounds of the auction, stopping early if convergence is detected.
+        Child classes can override or extend this method as needed.
+        """
+        # Track how many consecutive rounds each bidder has remained on the same best action
+        convergence_count = {bidder: 0 for bidder in self.bidders}
+        # Track each bidder's previous best action
+        last_best_action = {bidder: np.argmax(bidder.q_values) for bidder in self.bidders}
+
+        for round_index in range(max_rounds):
+            # Each bidder places a bid
             bids = {bidder: bidder.place_bid() for bidder in self.bidders}
 
-            # In case of a draw (at the moment winner is randomly selected from winners --> surely this is a problem because both going low is very good)
-            max_bid = max(bids.values())
-            potential_winners = [bidder for bidder, bid in bids.items() if bid == max_bid]
-            winner = random.choice(potential_winners)  # Randomly select a winner among ties
-            winning_bid = bids[winner]
-            
-            # Initialize rewards for all bidders
-            rewards = {bidder: 0 for bidder in self.bidders}  # (default 0)
-            rewards[winner] = winner.value - winning_bid  # The winner's reward is assigned
+            # Use the child-class method to determine winner(s), winning bid, and rewards
+            winner, winning_bid, rewards = self._compute_rewards(bids)
 
-
-            # Update all bidders' strategies
+            # Update Q-values/strategies
             for bidder in self.bidders:
-                bidder.update_strategy(bids[bidder], rewards[bidder])  # Update Q-values
+                bidder.update_strategy(bids[bidder], rewards[bidder])
 
-                # Track convergence: check if argmax(q_values) has remained the same
+                # Convergence check
                 current_best_action = np.argmax(bidder.q_values)
                 if current_best_action == last_best_action[bidder]:
                     convergence_count[bidder] += 1
                 else:
-                    convergence_count[bidder] = 0  # Reset count if action changes
-                
-                last_best_action[bidder] = current_best_action  # Update last best action
+                    convergence_count[bidder] = 0
 
-            self.history.append((bids, winner, winning_bid, rewards[winner])) # final result, list of tuples giving info for EACH round
+                last_best_action[bidder] = current_best_action
 
-            # Check if both(all) bidders have converged
+            # Record round results (list of tuples giving info for EACH round)
+            self.history.append((bids, winner.name, winning_bid, rewards[winner]))
+
+            # If all bidders have kept the same best action for `convergence_limit` rounds, stop
             if all(count >= convergence_limit for count in convergence_count.values()):
-                print(f"Convergence detected after {_+1} rounds.")
+                print(f"Convergence detected after {round_index + 1} rounds.")
                 for bidder in self.bidders:
-                    print(f"Bidder ", {bidder.name}, " had converged to ", np.argmax(bidder.q_values)*0.05)
-                break  # Exit the loop if both bidders have converged
+                    print(f"Bidder", bidder.name, "had converged to ", np.argmax(bidder.q_values)*0.05)  #very ugly hard-coding CHANGE
+
+                
+                break
+
+class FPA_AuctionEnvironment(AbstractAuctionEnvironment):
+    """Concrete environment for a repeated First-Price Auction."""
+
+    def _compute_rewards(self, bids):
+        """
+        - Winner is the highest bidder.
+        - In ties, pick a random winner among those tied for highest bid.
+        - Winner's reward = winner.value - winning_bid
+        """
+        max_bid = max(bids.values())
+        potential_winners = [bidder for bidder, bid_amount in bids.items() if bid_amount == max_bid]
+
+        winner = random.choice(potential_winners)  # break tie randomly
+        winning_bid = bids[winner] #just max_bid
+
+        # Initialize reward dictionary
+        rewards = {bidder: 0 for bidder in bids}
+        rewards[winner] = winner.value - winning_bid  # first-price payoff (winner.value is 1 by default it is left open for later asymmetry)
+
+        return winner, winning_bid, rewards
+
+class SPA_AuctionEnvironment(AbstractAuctionEnvironment):
+    """Concrete environment for a repeated Second-Price Auction."""
+
+    def _compute_rewards(self, bids):
+        """
+        - Winner is the highest bidder.
+        - In ties, pick a random winner among the tied highest bidders and they pay that bid i.e. reduces to a FPA
+        - Winner's payoff = winner.value - second_highest_bid
+        """
+        # Identify highest bid
+        max_bid = max(bids.values())
+        potential_winners = [bidder for bidder, bid_amount in bids.items() if bid_amount == max_bid]
+        winner = random.choice(potential_winners)  # tie-breaking
+
+        # Identify second-highest bid (or highest among losers)
+        other_bids = [bid_amount for b, bid_amount in bids.items() if b != winner]
+        second_price = max(other_bids) if other_bids else 0 
+
+        # Assign rewards
+        rewards = {bidder: 0 for bidder in bids}
+        winning_bid = bids[winner]
+        rewards[winner] = winner.value - second_price
+
+        return winner, winning_bid, rewards
 
 class EpsilonGreedy:
     """Represents an agent using the ε-greedy reinforcement learning strategy."""
     
-    def __init__(self, name, value, a=0.025, b=0.0002, alpha = 0.05, gamma = 0.99): 
+    def __init__(self, name, value, a=0.025, b=0.0002, alpha = 0.05, gamma = 0.99, init_param=101): 
         self.name = name
         self.value = value  # The private value for the item
         self.a = a # the constant in front of the term for probability of exploring in every round
@@ -65,18 +125,18 @@ class EpsilonGreedy:
         self.alpha = alpha  # learning rate
         self.gamma = gamma  # Discount factor for future rewards 
         self.number_of_bids = 19
+        self.init_param = init_param
 
         ## At the moment the available bid depends on the value of the bidder, might want to change this ## 
         self.bid_options = np.array([i*0.05 for i in range(1, self.number_of_bids + 1)]) #Creates the grid from 0 to value, num_actions giving density of discrete actions available
         
-        #Optimistic initialisation
+        
 
-        optimism = float(1.5)
+        #Optimistic initialisation - must be bigger than 100 to deal with worst case scenario and truly be optimistic. 
+
+        optimism = float(self.init_param)
         self.q_values = np.full(self.number_of_bids, optimism)
-        
-        
-        # self.q_values = np.zeros(self.number_of_bids)  # Q-values initialised at zero for each available action
-        # self.action_counts = np.zeros(num_actions)  # Times each bid was selected
+           
 
 
     def place_bid(self):
@@ -110,14 +170,20 @@ class EpsilonGreedy:
         td_error = td_target - self.q_values[action]  # Difference from Q-value
 
         # update Q-value with learning rate alpha
+        #print(f"Before update: ", self.q_values[action])
         self.q_values[action] = self.q_values[action] + self.alpha * td_error
-        
+        #print(f"After update: ", self.q_values[action])
+
 
 class AuctionSimulation:
     """Controls the auction simulation and stores results."""
     
-    def __init__(self, bidders, max_rounds=10000, convergence_limit=1000):
-        self.auction = FPA_AuctionEnvironment(bidders)
+    def __init__(self, environment_cls, bidders, max_rounds=10000, convergence_limit=1000):
+        """
+        :param environment_cls: A subclass of AbstractAuctionEnvironment (FPA or SPA).
+        :param bidders: A list of Bidder objects.
+        """
+        self.auction = environment_cls(bidders)
         self.max_rounds = max_rounds
         self.convergence_limit = convergence_limit
 
@@ -125,31 +191,3 @@ class AuctionSimulation:
         """Runs the auction and returns the history."""
         self.auction.run_auction(max_rounds=self.max_rounds, convergence_limit=self.convergence_limit)
         return self.auction.history
-
-### RUNNING THE MODEL ### 
-
-#Parameters
-
-"""
-  a = the constant in front of the term for probability of exploring in every round (epsilon)
-  b = the decay rate beta 
-  alpha = learning rate
-  gamma = discount factor for future rewards
-
-"""
-
-#Define the bidder objects
-bidder1 = EpsilonGreedy(name="Agent1", value=1, a=0.025, b=0.0002, alpha = 0.05, gamma = 0.99)
-bidder2 = EpsilonGreedy(name="Agent2", value=1, a=0.025, b=0.0002, alpha = 0.05, gamma = 0.99)
-
-#Run the simulation
-simulation = AuctionSimulation(bidders=[bidder1, bidder2], max_rounds=1000000, convergence_limit=1000) # No. rounds of 1,000,000 is okay time wise
-
-#history is a list of tuples giving info for each round (bids, winner, winning_bid, reward)
-history = simulation.run()
-bid_options = np.array([(i / (19 + 1)) for i in range(1, 19 + 1)]) ##value 1 is creating the available bid options for the heatmap. 
-
-### PLOT THE RESULTS INTO A HEATMAP ###
-### WORK IN PROGRESS ### 
-
-## current problem -> the auction is converging immediately after the first thousand rounds when it really shouldn't be 
