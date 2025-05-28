@@ -10,10 +10,10 @@ from framework import (
 #Parameters
 
 """
-  a = the constant in front of the term for probability of exploring in every round (epsilon)
+  a = the constant in front of the term for probability of exploring in every round (epsilon) 
   b = the decay rate beta 
-  alpha = learning rate
-  gamma = discount factor for future rewards
+  alpha = learning rate / step size 
+  gamma = discount factor for future rewards 
 
 """
 

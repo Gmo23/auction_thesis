@@ -54,15 +54,16 @@ class AbstractAuctionEnvironment(ABC):
                     convergence_count[bidder] = 0
 
                 last_best_action[bidder] = current_best_action
-
-            # Record round results (list of tuples giving info for EACH round)
-            self.history.append((bids, winner.name, winning_bid, rewards[winner]))
+            
+            # Loggin results: 
+            q_snapshot = {bidder.name: bidder.q_values.copy() for bidder in self.bidders}
+            self.history.append((bids, winner.name, winning_bid, rewards[winner], q_snapshot))
 
             # If all bidders have kept the same best action for `convergence_limit` rounds, stop
             if all(count >= convergence_limit for count in convergence_count.values()):
                 print(f"Convergence detected after {round_index + 1} rounds.")
                 for bidder in self.bidders:
-                    print(f"Bidder", bidder.name, "had converged to ", np.argmax(bidder.q_values)*0.05)  #very ugly hard-coding CHANGE
+                    print(f"Bidder", bidder.name, "had converged to ", (np.argmax(bidder.q_values)+1)*0.05)  #very ugly hard-coding CHANGE
 
                 
                 break
@@ -165,14 +166,17 @@ class EpsilonGreedy:
         action = np.where(self.bid_options == bid)[0][0]  # finds the index of the specific bid from the grid of available actions   
 
         #Compute TD update using alpha (learning rate)
-        max_q = np.max(self.q_values) #Best future value
-        td_target = reward + (self.gamma * max_q) # expected value (reward + discounted future best/greedy rewards)
-        td_error = td_target - self.q_values[action]  # Difference from Q-value
+
+        # Q(t+1) = [1-alpha]Q(t) + alpha[reward + gamma*maxQ(t)]
+        # Q(t+1) = Q(t) + alpha[reward + gamma*maxQ(t) - Q(t)]
+        # Q(t+1) = Q(t) + alpha[td_error]
+
+        max_q = np.max(self.q_values) # = maxQ(t)
+        td_target = reward + (self.gamma * max_q) # = [reward + gamma*maxQ(t)]
+        td_error = td_target - self.q_values[action]  # = td_target - Q(t)
 
         # update Q-value with learning rate alpha
-        #print(f"Before update: ", self.q_values[action])
         self.q_values[action] = self.q_values[action] + self.alpha * td_error
-        #print(f"After update: ", self.q_values[action])
 
 
 class AuctionSimulation:
