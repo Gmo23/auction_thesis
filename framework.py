@@ -178,7 +178,6 @@ class EpsilonGreedy:
         # update Q-value with learning rate alpha
         self.q_values[action] = self.q_values[action] + self.alpha * td_error
 
-
 class AuctionSimulation:
     """Controls the auction simulation and stores results."""
     
