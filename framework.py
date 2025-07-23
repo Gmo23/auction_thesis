@@ -179,6 +179,7 @@ class EpsilonGreedy:
         self.q_values[action] = self.q_values[action] + self.alpha * td_error
 
 class AuctionSimulation:
+
     """Controls the auction simulation and stores results."""
     
     def __init__(self, environment_cls, bidders, max_rounds=10000, convergence_limit=1000):
@@ -194,3 +195,4 @@ class AuctionSimulation:
         """Runs the auction and returns the history."""
         self.auction.run_auction(max_rounds=self.max_rounds, convergence_limit=self.convergence_limit)
         return self.auction.history
+    
