@@ -12,7 +12,7 @@ summary_results = []
 for sim_id in range(NUM_SIMULATIONS):
     bidders = [
         EpsilonGreedy(name="Agent1", value=1, a=0.025, b=0.0002, alpha = 0.05, gamma = 0.99, init_param=101),
-        EpsilonGreedy(name="Agent2", value=0.5, a=0.025, b=0.0002, alpha = 0.05, gamma = 0.99, init_param=101)
+        EpsilonGreedy(name="Agent2", value=1, a=0.025, b=0.0002, alpha = 0.025, gamma = 0.99, init_param=101)
     ]
     env = AUCTION_CLASS(bidders)
 
