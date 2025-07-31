@@ -1,10 +1,4 @@
 # Virtual environment
 .venv/
 __pycache__/framework.cpython-38.pyc
-FPA_asymmetry2_results.csv
-.gitignore
-.gitignore
-SPA_auction_summary_results.csv
-FPA_asymmetry1_results.csv
-.gitignore
-FPA_auction_summary_results.csv
+Results/

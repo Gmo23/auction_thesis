@@ -25,7 +25,7 @@ class AbstractAuctionEnvironment(ABC):
         """
         pass
 
-    def run_auction(self, max_rounds=10000, convergence_limit=1000):
+    def run_auction(self, max_rounds=1000000, convergence_limit=1000):
         """
         Run multiple rounds of the auction, stopping early if convergence is detected.
         Child classes can override or extend this method as needed.
@@ -64,9 +64,11 @@ class AbstractAuctionEnvironment(ABC):
                 print(f"Convergence detected after {round_index + 1} rounds.")
                 for bidder in self.bidders:
                     print(f"Bidder", bidder.name, "had converged to ", (np.argmax(bidder.q_values)+1)*0.05)  #very ugly hard-coding CHANGE
-
-                
+ 
                 break
+            
+            if round_index + 1 == max_rounds:
+                print("Agents have not converged after 1,000,000 rounds") 
 
 class FPA_AuctionEnvironment(AbstractAuctionEnvironment):
     """Concrete environment for a repeated First-Price Auction."""
@@ -128,7 +130,7 @@ class EpsilonGreedy:
         self.number_of_bids = 19
         self.init_param = init_param
 
-        ## At the moment the available bid depends on the value of the bidder, might want to change this ## 
+        ### Bad hard coding ### 
         self.bid_options = np.array([i*0.05 for i in range(1, self.number_of_bids + 1)]) #Creates the grid from 0 to value, num_actions giving density of discrete actions available
         
         
