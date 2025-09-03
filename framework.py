@@ -87,7 +87,16 @@ class FPA_AuctionEnvironment(AbstractAuctionEnvironment):
 
         # Initialize reward dictionary
         rewards = {bidder: 0 for bidder in bids}
-        rewards[winner] = winner.value - winning_bid  # first-price payoff (winner.value is 1 by default it is left open for later asymmetry)
+
+        # Simple way of performing a markovian value for each agent in a two-state symmetric markov chain
+        if winner.stochastic > 0:
+            if random.random() < 0.5:
+                rewards[winner] = winner.value - winning_bid
+            else:
+                rewards[winner] = winner.value - winner.stochastic - winning_bid
+
+        else:       
+            rewards[winner] = winner.value - winning_bid  # first-price payoff (winner.value is 1 by default it is left open for later asymmetry)
 
         return winner, winning_bid, rewards
 
@@ -119,7 +128,7 @@ class SPA_AuctionEnvironment(AbstractAuctionEnvironment):
 class EpsilonGreedy:
     """Represents an agent using the ε-greedy reinforcement learning strategy."""
     
-    def __init__(self, name, value, a=0.025, b=0.0002, alpha = 0.05, gamma = 0.99, init_param=101): 
+    def __init__(self, name, value, a=0.025, b=0.0002, alpha = 0.05, gamma = 0.99, init_param=101, stochastic=0): 
         self.name = name
         self.value = value  # The private value for the item
         self.a = a # the constant in front of the term for probability of exploring in every round
@@ -130,8 +139,11 @@ class EpsilonGreedy:
         self.number_of_bids = 19
         self.init_param = init_param
 
+        ### Value to handle the case with stochastic values 
+        self.stochastic = stochastic
+
         ### Bad hard coding ### 
-        self.bid_options = np.array([i*0.05 for i in range(1, self.number_of_bids + 1)]) #Creates the grid from 0 to value, num_actions giving density of discrete actions available
+        self.bid_options = np.array([i*0.05 for i in range(1, self.number_of_bids + 1)]) # Creates the grid from 0 to value, num_actions giving density of discrete actions available
         
         
 
