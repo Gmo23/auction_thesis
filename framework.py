@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import random
 from abc import ABC, abstractmethod
+from collections import deque
 
 class AbstractAuctionEnvironment(ABC):
     """Abstract base class for a repeated auction environment."""
@@ -63,7 +64,7 @@ class AbstractAuctionEnvironment(ABC):
             if all(count >= convergence_limit for count in convergence_count.values()):
                 print(f"Convergence detected after {round_index + 1} rounds.")
                 for bidder in self.bidders:
-                    print(f"Bidder", bidder.name, "had converged to ", (np.argmax(bidder.q_values)+1)*0.05)  #very ugly hard-coding CHANGE
+                    print(f"Bidder", bidder.name, "had converged to ", (np.argmax(bidder.q_values)+1)*0.05)  
  
                 break
             
@@ -88,16 +89,22 @@ class FPA_AuctionEnvironment(AbstractAuctionEnvironment):
         # Initialize reward dictionary
         rewards = {bidder: 0 for bidder in bids}
 
-        # Simple way of performing a markovian value for each agent in a two-state symmetric markov chain
         if winner.stochastic > 0:
-            if random.random() < 0.5:
-                rewards[winner] = winner.value - winning_bid
+            r = random.random()
+            if r < 1/3:
+            # value unchanged
+                realized_value = winner.value
+            elif r < 2/3:
+                # value increases by stochastic amount
+                realized_value = winner.value + winner.stochastic
             else:
-                rewards[winner] = winner.value - winner.stochastic - winning_bid
+                # value decreases by stochastic amount
+                realized_value = winner.value - winner.stochastic
 
-        else:       
-            rewards[winner] = winner.value - winning_bid  # first-price payoff (winner.value is 1 by default it is left open for later asymmetry)
-
+            rewards[winner] = realized_value - winning_bid
+        else:
+            rewards[winner] = winner.value - winning_bid
+            
         return winner, winning_bid, rewards
 
 class SPA_AuctionEnvironment(AbstractAuctionEnvironment):
@@ -116,16 +123,97 @@ class SPA_AuctionEnvironment(AbstractAuctionEnvironment):
 
         # Identify second-highest bid (or highest among losers)
         other_bids = [bid_amount for b, bid_amount in bids.items() if b != winner]
-        second_price = max(other_bids) if other_bids else 0 
+        second_price = max(other_bids) 
 
         # Assign rewards
         rewards = {bidder: 0 for bidder in bids}
-        winning_bid = bids[winner]
-        rewards[winner] = winner.value - second_price
 
-        return winner, winning_bid, rewards
+        if winner.stochastic > 0:
+            r = random.random()
+            if r < 1/3:
+            # value unchanged
+                realized_value = winner.value
+            elif r < 2/3:
+                # value increases by stochastic amount
+                realized_value = winner.value + winner.stochastic
+            else:
+                # value decreases by stochastic amount
+                realized_value = winner.value - winner.stochastic
 
+            rewards[winner] = realized_value - second_price
+        else:
+            rewards[winner] = winner.value - second_price
+            
+        return winner, max_bid, rewards
+        
 class EpsilonGreedy:
+    """Represents an agent using the ε-greedy reinforcement learning strategy."""
+    
+    def __init__(self, name, value, a=0.025, b=0.0002, alpha = 0.05, gamma = 0.99, init_param=101, stochastic=0, num_bids=19): 
+        self.name = name
+        self.value = value  # The private value for the item
+        self.a = a # the constant in front of the term for probability of exploring in every round
+        self.b = b # the decay rate beta 
+        self.time_step = 0  #initialise the time step keeping a count of rounds to 0
+        self.alpha = alpha  # learning rate
+        self.gamma = gamma  # Discount factor for future rewards 
+        self.number_of_bids = num_bids
+        self.init_param = init_param
+
+        ### Value to handle the case with stochastic values 
+        self.stochastic = stochastic
+
+        ### Bad hard coding ### 
+        self.bid_options = np.array([i*0.05 for i in range(1, self.number_of_bids + 1)]) # Creates the grid from 0 to 0.95
+        
+        
+
+        #Optimistic initialisation - must be bigger than 100 to deal with worst case scenario and truly be optimistic. 
+
+        optimism = float(self.init_param)
+        self.q_values = np.full(self.number_of_bids, optimism)
+           
+
+
+    def place_bid(self):
+        """Chooses a bid using an ε-greedy strategy."""
+    
+        #Find new probability of exploration given it is decaying in time
+        epsilon_t = self.a * np.exp(-self.b * self.time_step)
+        
+        if np.random.rand() < epsilon_t: #explore
+            action = np.random.randint(self.number_of_bids) # Selects a random action
+
+        else:   # exploit
+            max_value = np.max(self.q_values)
+            max_indices = np.flatnonzero(self.q_values == max_value)
+            action = np.random.choice(max_indices) #in case of many q_values with max it randomly selects, e.g. at the start.
+
+            # action = np.argmax(self.q_values)  # selects action corresponding to current heighest action
+            
+        self.time_step += 1  #increment time-step for decaying epsilon
+
+        return self.bid_options[action]
+
+
+    def update_strategy(self, bid, reward):
+        """Updates bid strategy using the reward received."""
+        action = np.where(self.bid_options == bid)[0][0]  # finds the index of the specific bid from the grid of available actions   
+
+        #Compute TD update using alpha (learning rate)
+
+        # Q(t+1) = [1-alpha]Q(t) + alpha[reward + gamma*maxQ(t)]
+        # Q(t+1) = Q(t) + alpha[reward + gamma*maxQ(t) - Q(t)]
+        # Q(t+1) = Q(t) + alpha[td_error]
+
+        max_q = np.max(self.q_values) # = maxQ(t)
+        td_target = reward + (self.gamma * max_q) # = [reward + gamma*maxQ(t)]
+        td_error = td_target - self.q_values[action]  # = td_target - Q(t)
+
+        # update Q-value with learning rate alpha
+        self.q_values[action] = self.q_values[action] + self.alpha * td_error
+
+class SarsaGreedy:
     """Represents an agent using the ε-greedy reinforcement learning strategy."""
     
     def __init__(self, name, value, a=0.025, b=0.0002, alpha = 0.05, gamma = 0.99, init_param=101, stochastic=0): 
@@ -185,8 +273,7 @@ class EpsilonGreedy:
         # Q(t+1) = Q(t) + alpha[reward + gamma*maxQ(t) - Q(t)]
         # Q(t+1) = Q(t) + alpha[td_error]
 
-        max_q = np.max(self.q_values) # = maxQ(t)
-        td_target = reward + (self.gamma * max_q) # = [reward + gamma*maxQ(t)]
+        td_target = reward + (self.gamma * self.q_values[action]) # = [reward + gamma*Q(t)]
         td_error = td_target - self.q_values[action]  # = td_target - Q(t)
 
         # update Q-value with learning rate alpha

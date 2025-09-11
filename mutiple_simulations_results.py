@@ -5,15 +5,14 @@ import random
 NUM_SIMULATIONS = 100
 MAX_ROUNDS = 1_000_000
 CONVERGENCE_LIMIT = 1000
-AUCTION_CLASS = FPA_AuctionEnvironment  # FPA_Auction_Environment or SPA_AuctionEnvironment
+AUCTION_CLASS = SPA_AuctionEnvironment  # FPA_Auction_Environment or SPA_AuctionEnvironment
 
 summary_results = []
 
 for sim_id in range(NUM_SIMULATIONS):
     bidders = [
-        EpsilonGreedy(name="Agent1", value=1, a=0.025, b=0.0002, alpha = 0.05, gamma = 0.99, init_param=101, stochastic=0),
-        EpsilonGreedy(name="Agent2", value=1, a=0.025, b=0.0002, alpha = 0.05, gamma = 0.99, init_param=101, stochastic=0),
-        #EpsilonGreedy(name="Agent3", value=1, a=0.025, b=0.0002, alpha = 0.05, gamma = 0.99, init_param=101, stochastic=0)
+        EpsilonGreedy(name="Agent1", value=0.5, a=0.025, b=0.0002, alpha = 0.05, gamma = 0.99, init_param=101, stochastic=0.4),
+        EpsilonGreedy(name="Agent2", value=0.5, a=0.025, b=0.0002, alpha = 0.05, gamma = 0.99, init_param=101, stochastic=0.4),
     ]
     env = AUCTION_CLASS(bidders)
 
@@ -58,4 +57,4 @@ for sim_id in range(NUM_SIMULATIONS):
 # Save to file
 import pandas as pd
 df = pd.DataFrame(summary_results)
-df.to_csv("FPA_stochastic_0_4_asym_results.csv", index=False)
+df.to_csv("SPA_stochastic_both_0.4.csv", index=False)
