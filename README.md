@@ -1,6 +1,6 @@
 # Algorithmic Collusion in First- and Second-Price Auctions
 
-This repository accompanies a Bocconi thesis investigating whether reinforcement
+This repository accompanies a paper investigating whether reinforcement
 learning algorithms tacitly collude in repeated auctions, and whether such
 collusion is robust to asymmetries between bidders.
 
