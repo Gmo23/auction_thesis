@@ -5,15 +5,14 @@ from itertools import product
 from typing import Tuple
 from itertools import combinations_with_replacement
 
-# --- bring in your framework classes/helpers ---
-from archive.framework_v2 import (
-    SPA_AuctionEnvironment, 
+from src import (
+    SPA_AuctionEnvironment,
     FPA_AuctionEnvironment,
     QlearningGreedy,
     SarsaGreedy,
     ContextualLinUCB,
-    _best_action_signature,   # tie-aware helper 
 )
+from src.environments import _best_action_signature  # tie-aware helper
 
 # ---------------- Config ----------------
 NUM_SIMULATIONS   = 100
@@ -74,7 +73,6 @@ def _singleton_best_index(bidder):
         return True, int(payload[0])
     return False, -1
 
-    
 
 def _converged_rounds(env, max_rounds: int) -> Tuple[bool, int]:
     """

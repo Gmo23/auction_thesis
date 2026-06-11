@@ -1,97 +1,111 @@
-"""
-Noisy SPA: with probability `disqualification_prob`, a unique top bidder is
-disqualified and the auction is resolved among the remainder. Implemented as
-a subclass of SPA_AuctionEnvironment so the framework's standard loop still
-drives convergence detection.
-"""
-
 import os
 import sys
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 import random
 import numpy as np
-import pandas as pd
-
-from src import (
-    FPA_AuctionEnvironment,
-    SPA_AuctionEnvironment,
-    QlearningGreedy,
-)
+from src import FPA_AuctionEnvironment, SPA_AuctionEnvironment, QlearningGreedy
 
 NUM_SIMULATIONS = 10
 MAX_ROUNDS = 1_000_000
 CONVERGENCE_LIMIT = 1000
-DISQUALIFICATION_PROB = 0.01
-FALLBACK_SECOND_PRICE = 0.4
+AUCTION_CLASS = SPA_AuctionEnvironment  # FPA_Auction_Environment or SPA_AuctionEnvironment
 
+summary_results = []
 
-class NoisySPA(SPA_AuctionEnvironment):
-    """SPA where a unique top bidder is disqualified with some probability."""
+print("Running for noise = 0.01 and value = 1 (symmetric)")
 
-    def __init__(self, bidders, disqualification_prob=DISQUALIFICATION_PROB,
-                 fallback_second_price=FALLBACK_SECOND_PRICE):
-        super().__init__(bidders)
-        self.disqualification_prob = disqualification_prob
-        self.fallback_second_price = fallback_second_price
+for sim_id in range(NUM_SIMULATIONS):
+    bidders = [
+        QlearningGreedy(name="Agent1", value=1, a=0.025, b=0.0002, alpha = 0.05, gamma = 0.99, init_param=101, delta=0),
+        QlearningGreedy(name="Agent2", value=1, a=0.025, b=0.0002, alpha = 0.05, gamma = 0.99, init_param=101, delta=0),
+    ]
+    env = AUCTION_CLASS(bidders)
 
-    def _compute_rewards(self, bids):
-        max_bid = max(bids.values())
-        top_candidates = [b for b, amt in bids.items() if amt == max_bid]
+    convergence_count = {bidder: 0 for bidder in bidders}
+    last_best_action = {bidder: np.argmax(bidder.q_values) for bidder in bidders}
+    converged = False
 
-        if len(top_candidates) > 1:
-            winner = random.choice(top_candidates)
-            second_price = max(amt for bb, amt in bids.items() if bb is not winner)
+    for round_idx in range(MAX_ROUNDS):
+        bids = {bidder: bidder.place_bid() for bidder in bidders}
+
+        # No noise is added in the FPA case 
+        if isinstance(env, FPA_AuctionEnvironment):
+            max_bid = max(bids.values())
+            potential_winners = [b for b, amt in bids.items() if amt == max_bid]
+            winner = random.choice(potential_winners)
+            winning_bid = bids[winner]
+
+            rewards = {bidder: 0.0 for bidder in bids}
+
+            # Use realized_value revealed in begin_round() if available
+            w_value = getattr(winner, "realized_value", getattr(winner, "value", 0.0))
+            rewards[winner] = float(w_value) - float(winning_bid)
+        
+        
         else:
-            top = top_candidates[0]
-            if random.random() < self.disqualification_prob:
-                remaining = [b for b in bids if b is not top]
-                rem_max = max(bids[b] for b in remaining)
-                rem_candidates = [b for b in remaining if bids[b] == rem_max]
-                winner = random.choice(rem_candidates)
-                second_price = self.fallback_second_price
-            else:
-                winner = top
+            # SPA: second-price; 5% chance a unique top bidder is disqualified
+            max_bid = max(bids.values())
+            top_candidates = [b for b, amt in bids.items() if amt == max_bid]
+
+            if len(top_candidates) > 1:
+                # Tie at the top: pick winner among ties; price = highest other bid
+                winner = random.choice(top_candidates)
                 second_price = max(amt for bb, amt in bids.items() if bb is not winner)
+            else:
+                # Unique top
+                top = top_candidates[0]
+                if random.random() < 0.01:
+                    # Disqualify the unique top; choose winner among remaining
+                    remaining = [b for b in bids if b is not top]
+                    rem_max = max(bids[b] for b in remaining)
+                    rem_candidates = [b for b in remaining if bids[b] == rem_max]
+                    winner = random.choice(rem_candidates)
+                    # Second price = highest losing bid among the remaining (exclude disqualified + new winner)
+                    second_price = 0.4
+                    #losing_bids = [bids[b] for b in remaining if b is not winner]
+                    #second_price = max(losing_bids) if losing_bids else 0.0
+                else:
+                    # No disqualification
+                    winner = top
+                    second_price = max(amt for bb, amt in bids.items() if bb is not winner)
 
-        rewards = {b: 0.0 for b in bids}
-        w_value = getattr(winner, "realized_value", getattr(winner, "value", 0.0))
-        rewards[winner] = float(w_value) - float(second_price)
-        return winner, max_bid, rewards
+            winning_bid = bids[winner]
+            rewards = {b: 0.0 for b in bids}
+            w_value = getattr(winner, "realized_value", getattr(winner, "value", 0.0))
+            rewards[winner] = float(w_value) - float(second_price)
 
-
-def run(env_cls=NoisySPA, outfile="SPA_value_1_noisy.csv"):
-    print("Running for noise = 0.01 and value = 1 (symmetric)")
-    summary_results = []
-
-    for sim_id in range(NUM_SIMULATIONS):
-        bidders = [
-            QlearningGreedy(name="Agent1", value=1, a=0.025, b=0.0002,
-                            alpha=0.05, gamma=0.99, init_param=101, delta=0),
-            QlearningGreedy(name="Agent2", value=1, a=0.025, b=0.0002,
-                            alpha=0.05, gamma=0.99, init_param=101, delta=0),
-        ]
-        env = env_cls(bidders)
-        env.run_auction(max_rounds=MAX_ROUNDS, convergence_limit=CONVERGENCE_LIMIT)
-
-        rounds_played = len(env.history)
-        converged = rounds_played < MAX_ROUNDS
-
-        record = {
-            "simulation_id": sim_id,
-            "rounds_to_convergence": rounds_played if converged else "NA",
-        }
         for bidder in bidders:
-            best_index = int(np.argmax(bidder.q_values))
-            record[f"converged_bid_{bidder.name}"] = float(bidder.bid_options[best_index])
-            record[f"converged_q_{bidder.name}"] = float(bidder.q_values[best_index])
-        summary_results.append(record)
+            bidder.update_strategy(bids[bidder], rewards[bidder])
+            best_action = np.argmax(bidder.q_values)
 
-    df = pd.DataFrame(summary_results)
-    df.to_csv(outfile, index=False)
-    print(f"Saved {len(df)} rows to {outfile}")
-    return df
+            if best_action == last_best_action[bidder]:
+                convergence_count[bidder] += 1
+            else:
+                convergence_count[bidder] = 0
 
+            last_best_action[bidder] = best_action
 
-if __name__ == "__main__":
-    run()
+        if all(c >= CONVERGENCE_LIMIT for c in convergence_count.values()):
+            converged = True
+            break
+
+    # Record results
+    record = {
+        "simulation_id": sim_id,
+        "rounds_to_convergence": round_idx + 1 if converged else "NA"
+    }
+
+    for bidder in bidders:
+        best_index = np.argmax(bidder.q_values)
+        best_bid = bidder.bid_options[best_index]
+        best_q = bidder.q_values[best_index]
+        record[f"converged_bid_{bidder.name}"] = best_bid
+        record[f"converged_q_{bidder.name}"] = best_q
+
+    summary_results.append(record)
+
+# Save to file
+import pandas as pd
+df = pd.DataFrame(summary_results)
+df.to_csv("SPA_value_1_noisy.csv", index=False)
