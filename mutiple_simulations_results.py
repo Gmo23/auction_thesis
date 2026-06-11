@@ -1,5 +1,5 @@
 import numpy as np
-from framework import FPA_AuctionEnvironment, SPA_AuctionEnvironment, EpsilonGreedy
+from old_framework import FPA_AuctionEnvironment, SPA_AuctionEnvironment, EpsilonGreedy
 import random
 
 NUM_SIMULATIONS = 100
@@ -57,4 +57,4 @@ for sim_id in range(NUM_SIMULATIONS):
 # Save to file
 import pandas as pd
 df = pd.DataFrame(summary_results)
-df.to_csv("SPA_stochastic_both_0.4.csv", index=False)
+#df.to_csv("ENTER_FILENAME", index=False)

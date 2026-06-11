@@ -1,6 +1,5 @@
-from framework import (
+from old_framework import (
     EpsilonGreedy,
-    SarsaGreedy,
     FPA_AuctionEnvironment,
     SPA_AuctionEnvironment,
     AuctionSimulation
@@ -18,9 +17,10 @@ from framework import (
 """
 
 #Define the bidder objects
-bidder1 = EpsilonGreedy(name="Agent1", value=0.5, a=0.025, b=0.0002, alpha = 0.05, gamma = 0.99, init_param=100, stochastic=0)
-bidder2 = EpsilonGreedy(name="Agent2", value=0.5, a=0.025, b=0.0002, alpha = 0.05, gamma = 0.99, init_param=100, stochastic=0)
-#bidder3 = EpsilonGreedy(name="Agent3", value=0.8, a=0.025, b=0.0002, alpha = 0.05, gamma = 0.99, init_param=100, stochastic=0)
+
+bidder1 = EpsilonGreedy(name="Agent1", value=0.5, a=0.025, b=0.0002, alpha = 0.05, gamma = 0.99, init_param=100)
+bidder2 = EpsilonGreedy(name="Agent2", value=0.5, a=0.025, b=0.0002, alpha = 0.05, gamma = 0.99, init_param=100)
+
 
 #run simulation for FPA or SPA
 simulation = AuctionSimulation(SPA_AuctionEnvironment, bidders=[bidder1, bidder2], max_rounds=1000000, convergence_limit=1000) # No. rounds of 1,000,000 is okay time wise
@@ -32,8 +32,6 @@ history = simulation.run()
 
 ### PLOT THE RESULTS INTO A HEATMAP ###
 ### WORK IN PROGRESS ### 
-
-## current problem -> the auction is converging immediately after the first thousand rounds when it really shouldn't be 
 
 # Bertran games 
 # more abstract intermediate classes 

@@ -1,5 +1,5 @@
 # Virtual environment
 .venv/
 __pycache__/framework.cpython-38.pyc
-Results_FPA/
-Results_SPA/
+Data/
+__pycache__
